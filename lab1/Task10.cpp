@@ -37,3 +37,7 @@ int* ConvertMatrixToVector(int** matrix, int m, int n) {
         for (int j = 0; j < n; j++)
             vector[index++] = matrix[i][j];
 }
+
+int main(int argc, char* argv[]) {
+    return 0;
+}
