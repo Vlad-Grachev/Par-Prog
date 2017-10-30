@@ -64,11 +64,6 @@ int main(int argc, char* argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &current_rank);
 
-    if (num_proc < 1) {
-        cout << "Number of proccesses is incorrect" << endl;
-        return 0;
-    }
-
     if (current_rank == 0) {
         cout << "Enter matrix size >> ";
         cin >> m >> n; cout << endl;
@@ -84,7 +79,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
-        if (num_elem < 2500) {
+        if (num_elem < 400) {
             cout << "Current matrix: " << endl;
             PrintMatrix(matrix, m, n);
         }
@@ -107,25 +102,21 @@ int main(int argc, char* argv[]) {
         start_time = MPI_Wtime();
         area_size = num_elem / num_proc;
 
+        MPI_Bcast(&area_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
         for (int i = 1; i < num_proc; i++)
-            MPI_Send(&area_size, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
-        for (int i = 1; i < num_proc; i++)
-            MPI_Send(vmatrix + area_size * (i - 1), area_size, MPI_INT,
-                                             i, 1, MPI_COMM_WORLD);
+            MPI_Send(vmatrix + area_size * (i - 1), area_size, MPI_INT, i, 1, MPI_COMM_WORLD);
 
         for (int i = area_size * (num_proc - 1); i < num_elem; i++) // нулевой процесс считает оставшуюся часть
             partial_sum += vmatrix[i];
-        par_sum = partial_sum;
-        for (int i = 1; i < num_proc; i++) {
-            MPI_Recv(&partial_sum, 1, MPI_INT, i, 1, MPI_COMM_WORLD, &stat);
-            par_sum += partial_sum;
-        }
+
+        MPI_Reduce(&partial_sum, &par_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
         end_time = MPI_Wtime();
         par_duration = (end_time - start_time) * 1000.0;
 
         cout << "__Parallel algorithm__" << endl;
-        cout << "Sum of matrix elements: " << seq_sum << endl;
+        cout << "Sum of matrix elements: " << par_sum << endl;
         cout << "Spent time: " << par_duration << " ms" << "\n\n";
 
         if (seq_sum == par_sum)
@@ -143,16 +134,16 @@ int main(int argc, char* argv[]) {
         delete matrix;
     }
     else {
-        int* received_vmatrix;
-        MPI_Recv(&area_size, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &stat);
-        received_vmatrix = new int[area_size];
-        MPI_Recv(received_vmatrix, area_size, MPI_INT, 0, 1, MPI_COMM_WORLD, &stat);
+        MPI_Bcast(&area_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        vmatrix = new int[area_size];
+
+        MPI_Recv(vmatrix, area_size, MPI_INT, 0, 1, MPI_COMM_WORLD, &stat);
 
         for (int i = 0; i < area_size; i++)
-            partial_sum += received_vmatrix[i];
+            partial_sum += vmatrix[i];
 
-        MPI_Send(&partial_sum, 1, MPI_INT, 0, 1, MPI_COMM_WORLD);
-        delete received_vmatrix;
+        MPI_Reduce(&partial_sum, &par_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+        delete vmatrix;
     }
     MPI_Finalize();
     return 0;
