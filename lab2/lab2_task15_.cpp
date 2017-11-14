@@ -1,4 +1,5 @@
 // Copyright 2017 Grachev Vlad
+// This version contains another way of rows distribution
 
 #include <mpi.h>
 #include <ctime>
@@ -172,3 +173,98 @@ int main(int argc, char* argv[]) {
     MPI_Finalize();
     return 0;
 }
+
+//    /* Parallel algorithm */
+//
+//    MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+//    if (proc_rank != 0)
+//        factor = new int[size];
+//    par_result = new int[size];
+//    MPI_Bcast(factor, size, MPI_INT, 0, MPI_COMM_WORLD);
+//
+//    if (proc_rank == 0)
+//        start_time = MPI_Wtime();;
+//
+//    free_rows = size;
+//    for (int i = 0; i < proc_rank; i++)
+//        free_rows = free_rows - free_rows / (num_proc - i);
+//    int num_row = free_rows / (num_proc - proc_rank);
+//    
+//    //num_row = size / num_proc;
+//    int *proc_rows = new int[num_row*size];
+//    int* proc_result = new int[num_row];
+//    send_index = new int[num_proc];
+//    num_send = new int[num_proc];
+//
+//    num_send[0] = num_row * size;
+//    send_index[0] = 0;
+//    free_rows = size;
+//    for (int i = 1; i < num_proc; i++) {
+//        free_rows -= num_row;
+//        num_row = free_rows/(num_proc - i);
+//        num_send[i] = num_row*size;
+//        send_index[i] = send_index[i - 1] + num_send[i - 1];
+//    }
+//    MPI_Scatterv(vmatrix, num_send, send_index, MPI_INT, proc_rows,
+//        num_send[proc_rank], MPI_INT, 0, MPI_COMM_WORLD);
+//    delete num_send;
+//    delete send_index;
+//
+//    for (int i = 0; i < num_row; i++) {
+//        proc_result[i] = 0;
+//        for (int j = 0; j < size; j++)
+//            proc_result[i] += proc_rows[i*size + j] * factor[j];
+//    }
+//
+//    int *num_recv;  // Количество элементов, посылаемых процессом
+//    int *recv_index;  // Индекс элемента данных в результирующем 
+//    // векторе
+//    free_rows = size; // Количество строк матрицы, которые еще не 
+//    // распределены
+//
+//    // Выделение памяти для временных объектов
+//    num_recv = new int[num_proc];
+//    recv_index = new int[num_proc];
+//
+//    // Определение положения блоков результирующего вектора 
+//    recv_index[0] = 0;
+//    num_recv[0] = size / num_proc;
+//    for (int i = 1; i<num_proc; i++) {
+//        free_rows -= num_recv[i - 1];
+//        num_recv[i] = free_rows / (num_proc - i);
+//        recv_index[i] = recv_index[i - 1] + num_recv[i - 1];
+//    }
+//    // Сбор всего результирующего вектора на всех процессах
+//    MPI_Allgatherv(proc_result, num_recv[proc_rank],
+//        MPI_INT, par_result, num_recv, recv_index,
+//        MPI_INT, MPI_COMM_WORLD);
+//
+//    // Освобождение памяти
+//    if (proc_rank == 0) {
+//        end_time = MPI_Wtime();;
+//        par_duration = (end_time - start_time) * 1000.0;
+//        cout << "__Paralell algorithm__" << endl;
+//        cout << "Result: \n";
+//        //PrintVector(par_result, size);
+//        cout << "Spent time: " << par_duration << " ms" << "\n\n";
+//        if (AreVectorsEqual(seq_result, par_result, size))
+//            cout << "Results are equal!" << endl;
+//        else
+//            cout << "Results are not equal!" << endl;
+//        if (seq_duration - par_duration <= 0.0)
+//            cout << "Sequantial algorithm is faster" << endl;
+//        else
+//            cout << "Parallel algorithm is faster" << endl;
+//    }
+//
+//    delete[] num_recv;
+//    delete[] recv_index;
+//
+//    delete seq_result;
+//    delete par_result;
+//    delete factor;
+//    delete vmatrix;
+//
+//    MPI_Finalize();
+//    return 0;
+//}
