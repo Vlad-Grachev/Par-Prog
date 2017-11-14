@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
-        if (m*n < 150) {
+        if (m*n < 170) {
             cout << "Matrix: " << endl;
             PrintVectorAsMatrix(vmatrix, m, n);
             cout << "will be multiplied by vector: " << endl;
