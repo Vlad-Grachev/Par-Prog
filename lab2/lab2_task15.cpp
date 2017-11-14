@@ -19,7 +19,6 @@ void PrintVector(int* vector, int size) {
     if (vector != NULL){
         for (int i = 0; i < size; i++) {
             cout.setf(ios::right);
-            cout.width(3);
             cout << vector[i] << ' ';
         }
         cout << "\n\n";
@@ -97,7 +96,7 @@ int main(int argc, char* argv[]) {
         seq_duration = (end_time - start_time) * 1000.0;
 
         cout << "__Sequential algorithm__" << endl;
-        if (m < 15) {
+        if (m < 14) {
             cout << "Result: \n";
             PrintVector(seq_result, m);
         }
@@ -145,7 +144,7 @@ int main(int argc, char* argv[]) {
     if (proc_rank == 0) {
         par_duration = (end_time - start_time) * 1000.0;
         cout << "__Paralell algorithm__" << endl;
-        if (m < 15) {
+        if (m < 14) {
             cout << "Result: \n";
             PrintVector(seq_result, m);
         }
