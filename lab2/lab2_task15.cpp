@@ -113,7 +113,6 @@ int main(int argc, char* argv[]) {
         factor = new int[n];
     MPI_Bcast(factor, n, MPI_INT, 0, MPI_COMM_WORLD);
 
-
     indexes = new int[num_proc];
     for (int i = 0; i < num_proc - 1; i++)
         indexes[i] = (portion_size * i) * n;
