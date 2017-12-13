@@ -3,15 +3,22 @@
 #include <mpi.h>
 #include <ctime>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
-int* CreateArray(int size) {
+struct comparator
+{
+    int a; int b;
+};
+vector<comparator> comparators;
+
+int* CreateArray(long size) {
     if (size < 1)
         return NULL;
     int* arr = new int[size];
-    for (int i = 0; i < size; i++)
-        arr[i] = rand() % 19998 - 9999; // [-9999; 9999]
+    for (long i = 0; i < size; i++)
+        arr[i] = rand() % 32000 - 16000; // [-16000; 16000]
     return arr;
 }
 
@@ -19,9 +26,9 @@ void PrintArray(int* arr, int size) {
     if (arr != NULL){
         for (int i = 0; i < size; i++) {
             cout.setf(ios::right);
-            cout.width(5);
+            cout.width(6);
             cout << arr[i] << ' ';
-            if ((i + 1) % 12 == 0)
+            if ((i + 1) % 10 == 0)
                 cout << endl;
         }
         cout << "\n\n";
@@ -48,32 +55,6 @@ bool AreArraysEqual(int *arr1, int *arr2, int size) {
     return true;
 }
 
-//void QuickSort(int *arr, int size) {
-////#define MAX_LEVELS 300
-////    int piv, beg[MAX_LEVELS], end[MAX_LEVELS], i = 0, L, R, swap;
-////    beg[0] = 0; end[0] = size;
-////    while (i >= 0) {
-////        L = beg[i]; R = end[i] - 1;
-////        if (L<R) {
-////            piv = arr[L];
-////            while (L<R) {
-////                while (arr[R] >= piv && L<R) R--;
-////                if (L<R) arr[L++] = arr[R];
-////                while (arr[L] <= piv && L<R) L++;
-////                if (L<R) arr[R--] = arr[L];
-////            }
-////            arr[L] = piv; beg[i + 1] = L + 1; end[i + 1] = end[i]; end[i++] = L;
-////            if (end[i] - beg[i]>end[i - 1] - beg[i - 1]) {
-////                swap = beg[i]; beg[i] = beg[i - 1]; beg[i - 1] = swap;
-////                swap = end[i]; end[i] = end[i - 1]; end[i - 1] = swap;
-////            }
-////        }
-////        else {
-////            i--;
-////        }
-////    }
-//}
-
 void QuickSort(int *arr, int size) {
     int i = 0, j = size - 1, piv = arr[size / 2], temp;
 
@@ -84,9 +65,7 @@ void QuickSort(int *arr, int size) {
             j--;
 
         if (i <= j) {
-            temp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = temp;
+            temp = arr[i]; arr[i] = arr[j]; arr[j] = temp;
             i++; j--;
         }
     }
@@ -96,7 +75,78 @@ void QuickSort(int *arr, int size) {
         QuickSort(&arr[i], size - i);
 }
 
-void PutMinInBuf(int **arr1, int **arr2, int **buf, int size) {
+void MakeComparator(vector<int> procs_up, vector<int> procs_down) {
+    int num_proc = (int)procs_up.size() + (int)procs_down.size();
+
+    if (num_proc == 1) return;
+
+    comparator cmptr;
+    if (num_proc == 2) {
+        cmptr.a = procs_up[0]; cmptr.b = procs_down[0];
+        comparators.push_back(cmptr);
+        return;
+    }
+
+    int up_size = procs_up.size();
+    int down_size = procs_down.size();
+    vector<int> procs_up_odd(up_size / 2 + up_size % 2);
+    vector<int> procs_down_odd(down_size / 2 + down_size % 2);
+    vector<int> procs_up_even(up_size / 2);
+    vector<int> procs_down_even(down_size / 2);
+    vector<int> procs_result(num_proc);
+    int j = 0, k = 0;
+
+    for (int i = 0; i < procs_up.size(); i++)
+        if (i % 2)
+            procs_up_even[j++] = procs_up[i];
+        else
+            procs_up_odd[k++] = procs_up[i];
+
+    j = 0; k = 0;
+    for (int i = 0; i < procs_down.size(); i++)
+        if (i % 2)
+            procs_down_even[j++] = procs_down[i];
+        else
+            procs_down_odd[k++] = procs_down[i];
+
+    MakeComparator(procs_up_odd, procs_down_odd);
+    MakeComparator(procs_up_even, procs_down_even);
+
+    for (int i = 0; i < procs_up.size(); i++)
+        procs_result[i] = procs_up[i];
+    for (int i = 0; i < procs_down.size(); i++)
+        procs_result[procs_up.size() + i] = procs_down[i];
+
+    for (int i = 1; i + 1 < procs_result.size(); i += 2) {
+        cmptr.a = procs_result[i]; cmptr.b = procs_result[i + 1];
+        comparators.push_back(cmptr);
+    }
+}
+
+void ConstructOddEvenNet(vector<int> &procs) {
+    if (procs.size() < 2) {
+        return;
+    }
+    vector<int> procs_up((int)procs.size() / 2);
+    vector<int> procs_down((int)procs.size() / 2 + procs.size() % 2);
+    for (int i = 0; i < procs_up.size(); i++)
+        procs_up[i] = procs[i];
+    for (int i = 0; i < procs_down.size(); i++)
+        procs_down[i] = procs[procs_up.size() + i];
+
+    ConstructOddEvenNet(procs_up);
+    ConstructOddEvenNet(procs_down);
+    MakeComparator(procs_up, procs_down);
+}
+
+void GetSortingNet(int num_proc) {
+    vector<int> procs(num_proc);
+    for (int i = 0; i < procs.size(); i++)
+        procs[i] = i;
+    ConstructOddEvenNet(procs);
+}
+
+void PutMinHalfInArr(int **arr1, int **arr2, int **buf, int size) {
     int j = 0, k = 0;
     int *tmp = NULL;
     for (int i = 0; i < size; i++)
@@ -107,66 +157,35 @@ void PutMinInBuf(int **arr1, int **arr2, int **buf, int size) {
     tmp = (*arr1); (*arr1) = (*buf); (*buf) = tmp;
 }
 
-void PutMaxInBuf(int **arr1, int **arr2, int **buf, int size) {
+void PutMaxHalfInArr(int **arr1, int **arr2, int **buf, int size) {
     int j = size - 1, k = size - 1;
     int *tmp = NULL;
     for (int i = size - 1; i >= 0; i--)
-        if ((*arr1)[k] > (*arr2)[j])
-            (*buf)[i] = (*arr1)[k--];
-        else
-            (*buf)[i] = (*arr2)[j--];
+        if ((*arr1)[k] > (*arr2)[j]) {
+            (*buf)[i] = (*arr1)[k]; k--;
+        }
+        else {
+            (*buf)[i] = (*arr2)[j]; j--;
+        }
     tmp = (*arr1); (*arr1) = (*buf); (*buf) = tmp;
 }
 
-void Comprexch(int rank_a, int rank_b, int current_rank,
-    int **arr1, int **arr2, int **buf, int size) {
-    if (current_rank == rank_a) {
-        MPI_Status st;
-        MPI_Send(*arr1, size, MPI_INT, rank_b, 0, MPI_COMM_WORLD);
-        MPI_Recv(*arr2, size, MPI_INT, rank_b, 1, MPI_COMM_WORLD, &st);
-        PutMinInBuf(arr1, arr2, buf, size);
-    }
-    else
-        if (current_rank == rank_b) {
-            MPI_Status st;
-            MPI_Send(*arr1, size, MPI_INT, rank_a, 1, MPI_COMM_WORLD);
-            MPI_Recv(*arr2, size, MPI_INT, rank_a, 0, MPI_COMM_WORLD, &st);
-            PutMaxInBuf(arr1, arr2, buf, size);
-        }
-}
-
-void MergeParts(int left, int right, int current_rank,
-    int **arr1, int **arr2, int **buf, int size) {
-    int N = right - left + 1;
-    for (int p = 1; p < N; p += p)
-        for (int k = p; k > 0; k /= 2)
-            for (int j = k % p; j + k < N; j += (k + k))
-                for (int i = 0; i < k; i++)
-                    if ((j + i) / (p + p))
-                        Comprexch(left + j + i, left + k + j + i,
-                        current_rank, arr1, arr2, buf, size);
-}
-
 int main(int argc, char* argv[]) {
+
     int  proc_rank;
     int  num_proc;
 
-    int size, portion_size;
+    int size = atoi(argv[1]), portion_size;
     int *seqalg_arr = NULL, *paralg_arr = NULL;
+    int *proc_part = NULL, *proc_part_ = NULL, *buf = NULL;
 
     double start_time = 0.0, end_time = 0.0;
     double  seq_duration = 0.0, par_duration = 0.0;
-
-    int *num_elem = NULL, *indexes = NULL;
-    int *proc_part = NULL, *proc_part_ = NULL, *buf = NULL;
-
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 
     if (proc_rank == 0) {
-        cout << "Enter array size >> ";
-        cin >> size; cout << endl;
         srand((unsigned)time(0));
         seqalg_arr = CreateArray(size);
         paralg_arr = new int[size];
@@ -174,64 +193,59 @@ int main(int argc, char* argv[]) {
             cout << "Can't create matrix" << endl;
             return 0;
         }
-        //if (size < 145)
-        //    PrintArray(arr, size);
     }
+
+    GetSortingNet(num_proc);
 
     /* Parallel algorithm*/
     start_time = MPI_Wtime();
-    MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
     portion_size = size / num_proc;
 
-    indexes = new int[num_proc];
-    for (int i = 0; i < num_proc; i++)
-        indexes[i] = portion_size * i;
-    num_elem = new int[num_proc];
-    for (int i = 0; i < num_proc - 1; i++)
-        num_elem[i] = portion_size;
-    num_elem[num_proc - 1] = size - portion_size * (num_proc - 1);
-    proc_part = new int[num_elem[proc_rank]];
-    proc_part_ = new int[num_elem[proc_rank]];
-    buf = new int[num_elem[proc_rank]];
-    MPI_Scatterv(seqalg_arr, num_elem, indexes, MPI_INT, proc_part,
-        num_elem[proc_rank], MPI_INT, 0, MPI_COMM_WORLD);
+    proc_part = new int[portion_size];
+    proc_part_ = new int[portion_size];
+    buf = new int[portion_size];
+    MPI_Scatter(seqalg_arr, portion_size, MPI_INT, proc_part,
+        portion_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-    cout << "Process with rank " << proc_rank << " sorted :\n";
-    PrintArray(proc_part, num_elem[proc_rank]);
-    QuickSort(proc_part, num_elem[proc_rank]);
-    cout << "Result: ";
-    PrintArray(proc_part, num_elem[proc_rank]);
+    QuickSort(proc_part, portion_size);
+    int *proc_part2;
+    proc_part2 = CopyArray(proc_part, portion_size);
+    //cout << "Result: ";
+    //PrintArray(proc_part, num_elem[proc_rank]);
 
-    MergeParts(0, num_proc - 1, proc_rank, 
-        &proc_part, &proc_part_, &buf, num_elem[proc_rank]);
-    cout << "Result of merging: ";
-    PrintArray(proc_part, num_elem[proc_rank]);
+    for (int i = 0; i < comparators.size(); i++)
+        if (proc_rank == comparators[i].a) {
+            MPI_Status st;
+            MPI_Sendrecv(proc_part, portion_size, MPI_INT, comparators[i].b, 0, proc_part_,
+                portion_size, MPI_INT, comparators[i].b, 0, MPI_COMM_WORLD, &st);
+            PutMinHalfInArr(&proc_part, &proc_part_, &buf, portion_size);
+        }
+        else if (proc_rank == comparators[i].b) {
+            MPI_Status st;
+            MPI_Sendrecv(proc_part, portion_size, MPI_INT, comparators[i].a, 0, proc_part_,
+                portion_size, MPI_INT, comparators[i].a, 0, MPI_COMM_WORLD, &st);
+            PutMaxHalfInArr(&proc_part, &proc_part_, &buf, portion_size);
+        }
 
-    MPI_Gatherv(proc_part, num_elem[proc_rank],
-        MPI_INT, paralg_arr, num_elem, indexes,
-        MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(proc_part, portion_size, MPI_INT, paralg_arr,
+        portion_size, MPI_INT, 0, MPI_COMM_WORLD);
     end_time = MPI_Wtime();
 
     if (proc_rank == 0) {
-        par_duration = (end_time - start_time) * 1000.0;
+        par_duration = (end_time - start_time);
 
         /* Sequantial algorithm */
         start_time = MPI_Wtime();
         QuickSort(seqalg_arr, size);
         end_time = MPI_Wtime();
-        seq_duration = (end_time - start_time) * 1000.0;
-
+        seq_duration = (end_time - start_time);
+        
+        cout << "Data size:" << size << endl;
         cout << "__Sequential algorithm__" << endl;
-        if (size < 144) {
-            cout << "Result: \n";
-            PrintArray(seqalg_arr, size);
-            cout << "Result: \n";
-            PrintArray(paralg_arr, size);
-        }
-        cout << "Spent time: " << seq_duration << " ms" << "\n\n";
+        cout << "Spent time: " << seq_duration << " sec" << "\n\n";
 
         cout << "__Paralell algorithm__" << endl;
-        cout << "Spent time: " << par_duration << " ms" << "\n\n";
+        cout << "Spent time: " << par_duration << " sec" << "\n\n";
         if (AreArraysEqual(seqalg_arr, paralg_arr, size))
             cout << "Results are equal!" << endl;
         else
@@ -245,11 +259,11 @@ int main(int argc, char* argv[]) {
         delete paralg_arr;
     }
 
-    delete indexes;
-    delete num_elem;
     delete proc_part;
+    delete proc_part2;
     delete proc_part_;
     delete buf;
+    comparators.clear();
 
     MPI_Finalize();
     return 0;
