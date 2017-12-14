@@ -87,15 +87,15 @@ void MakeComparator(vector<int> procs_up, vector<int> procs_down) {
         return;
     }
 
-    int up_size = procs_up.size();
-    int down_size = procs_down.size();
+    int up_size = (int)procs_up.size();
+    int down_size = (int)procs_down.size();
     vector<int> procs_up_odd(up_size / 2 + up_size % 2);
     vector<int> procs_down_odd(down_size / 2 + down_size % 2);
     vector<int> procs_up_even(up_size / 2);
     vector<int> procs_down_even(down_size / 2);
     vector<int> procs_result(num_proc);
-    int j = 0, k = 0;
 
+    int j = 0, k = 0;
     for (int i = 0; i < procs_up.size(); i++)
         if (i % 2)
             procs_up_even[j++] = procs_up[i];
@@ -161,17 +161,14 @@ void PutMaxHalfInArr(int **arr1, int **arr2, int **buf, int size) {
     int j = size - 1, k = size - 1;
     int *tmp = NULL;
     for (int i = size - 1; i >= 0; i--)
-        if ((*arr1)[k] > (*arr2)[j]) {
-            (*buf)[i] = (*arr1)[k]; k--;
-        }
-        else {
-            (*buf)[i] = (*arr2)[j]; j--;
-        }
+        if ((*arr1)[k] > (*arr2)[j])
+            (*buf)[i] = (*arr1)[k--];
+        else
+            (*buf)[i] = (*arr2)[j--];
     tmp = (*arr1); (*arr1) = (*buf); (*buf) = tmp;
 }
 
 int main(int argc, char* argv[]) {
-
     int  proc_rank;
     int  num_proc;
 
@@ -184,6 +181,11 @@ int main(int argc, char* argv[]) {
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    portion_size = size / num_proc;
+
+    proc_part = new int[portion_size];
+    proc_part_ = new int[portion_size];
+    buf = new int[portion_size];
 
     if (proc_rank == 0) {
         srand((unsigned)time(0));
@@ -191,7 +193,7 @@ int main(int argc, char* argv[]) {
         paralg_arr = new int[size];
         if (seqalg_arr == NULL) {
             cout << "Can't create matrix" << endl;
-            return 0;
+            return 1;
         }
     }
 
@@ -199,19 +201,11 @@ int main(int argc, char* argv[]) {
 
     /* Parallel algorithm*/
     start_time = MPI_Wtime();
-    portion_size = size / num_proc;
 
-    proc_part = new int[portion_size];
-    proc_part_ = new int[portion_size];
-    buf = new int[portion_size];
     MPI_Scatter(seqalg_arr, portion_size, MPI_INT, proc_part,
         portion_size, MPI_INT, 0, MPI_COMM_WORLD);
 
     QuickSort(proc_part, portion_size);
-    int *proc_part2;
-    proc_part2 = CopyArray(proc_part, portion_size);
-    //cout << "Result: ";
-    //PrintArray(proc_part, num_elem[proc_rank]);
 
     for (int i = 0; i < comparators.size(); i++)
         if (proc_rank == comparators[i].a) {
@@ -260,10 +254,8 @@ int main(int argc, char* argv[]) {
     }
 
     delete proc_part;
-    delete proc_part2;
     delete proc_part_;
     delete buf;
-    comparators.clear();
 
     MPI_Finalize();
     return 0;
